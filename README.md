@@ -33,6 +33,22 @@ console.log(matches);
 // Outputs `[{ start: 11, end: 14, errors: 1 }]`
 ```
 
+## API
+
+The library exports a single function `search(text, pattern, maxErrors)` which
+returns an array of the closest matches for _pattern_ in _text_ allowing up to
+_maxErrors_ errors.
+
+```ts
+interface Match {
+  start: number;
+  end: number;
+  errors: number;
+}
+
+search(text: string, pattern: string, maxErrors: number): Match[]
+```
+
 ## JavaScript-specific Notes
 
 #### Word size

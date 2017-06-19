@@ -99,23 +99,14 @@ interface Context {
   /** Bit-arrays of negative vertical deltas. */
   M: number[];
   /**
-   * Map of alphabet character index to bit-arrays indicating where that
+   * Map of alphabet character value to bit-arrays indicating where that
    * character appears in the pattern.
    *
-   * ie. `peq[10][b][i]` is set if the i'th character in the b'th segment of the
-   * pattern is equal to the 10th character of the alphabet.
+   * ie. `peq[v][b][i]` is set if the i'th character in the b'th segment of the
+   * pattern is equal to the character value `v`, where 'v' is the result of
+   * String.charCodeAt(...).
    */
   peq: Array<number[]>;
-}
-
-function alphabet(str: string) {
-  const chars = new Map<string,number>();
-  for (let i = 0; i < str.length; i += 1) {
-    if (!chars.has(str[i])) {
-      chars.set(str[i], chars.size);
-    }
-  }
-  return chars;
 }
 
 /**
@@ -201,8 +192,13 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   };
 
   // Calculate `ctx.peq` - the locations of chars within the pattern.
-  const chars = alphabet(text);
-  for (const [ch, val] of Array.from(chars)) {
+  for (let c = 0; c < text.length; c += 1) {
+    const val = text.charCodeAt(c);
+    if (ctx.peq[val]) {
+      // Duplicate char in text.
+      continue;
+    }
+
     // `ctx.peq[val]` is a bit-array where each int represents a 32-char slice
     // of the pattern.
     ctx.peq[val] = Array(bMax + 1);
@@ -214,12 +210,19 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       // pattern contained a wildcard char in that position.
       for (let r = 0; r < w; r += 1) {
         const idx = (b * w) + r;
-        const match = idx >= pattern.length || pattern[idx] === ch;
+        const match = idx >= pattern.length || pattern.charCodeAt(idx) === val;
         if (match) {
           ctx.peq[val][b] |= (1 << r);
         }
       }
     }
+  }
+
+  // Add a dummy entry for "wildcard" chars at the end of the text which match
+  // the pattern in every position.
+  ctx.peq[0] = Array(bMax + 1);
+  for (let b = 0; b <= bMax; b += 1) {
+    ctx.peq[0][b] = ~0;
   }
 
   // Length of wildcard char padding "added" to pattern to make its length a
@@ -244,7 +247,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   // Process each char of the text, computing the error count for `w` chars of
   // the pattern at a time.
   for (let j = 0; j < text.length + padding; j += 1) {
-    const ch = j >= text.length ? 0 : (chars.get(text[j]) as number);
+    const ch = j >= text.length ? 0 : text.charCodeAt(j);
 
     // Calculate error count for blocks that we definitely have to process for
     // this column.

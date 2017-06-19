@@ -28,9 +28,18 @@
  * Based on Dynamic Programming,” vol. 46, no. 3, pp. 395–415, 1999.
  */
 
+/**
+ * Represents a match returned by a call to `search`.
+ */
 interface Match {
+  /** Start offset within the text string of the match. */
   start: number;
+  /** End offset within the text string of the match. */
   end: number;
+  /**
+   * The number of differences (insertions, deletions or substitutions) between
+   * the pattern and the approximate match in the text.
+   */
   errors: number;
 }
 
@@ -76,9 +85,26 @@ function findMatchStarts(text: string, pattern: string, matches: Match[],
     });
 }
 
+/**
+ * Internal context used when calculating blocks of a column.
+ */
 interface Context {
+  /**
+   * Bit-arrays of positive vertical deltas.
+   *
+   * ie. `P[b][i]` is set if the vertical delta for the i'th row in the b'th
+   * block is positive.
+   */
   P: number[];
+  /** Bit-arrays of negative vertical deltas. */
   M: number[];
+  /**
+   * Map of alphabet character index to bit-arrays indicating where that
+   * character appears in the pattern.
+   *
+   * ie. `peq[10][b][i]` is set if the i'th character in the b'th segment of the
+   * pattern is equal to the 10th character of the alphabet.
+   */
   peq: Array<number[]>;
 }
 

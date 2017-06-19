@@ -15,8 +15,11 @@
   },
   "scripts": {
     "build": "tsc",
+    "postversion": "git push && git push --tags && npm publish",
     "prepublish": "yarn run build",
-    "test": "mocha"
+    "preversion": "yarn test",
+    "test": "mocha",
+    "watch": "tsc --watch"
   },
   "files": [
     "dist/"

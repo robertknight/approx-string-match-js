@@ -17,5 +17,8 @@
     "build": "tsc",
     "prepublish": "yarn run build",
     "test": "mocha"
-  }
+  },
+  "files": [
+    "dist/"
+  ]
 }

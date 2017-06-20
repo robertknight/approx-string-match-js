@@ -150,4 +150,23 @@ the solution of any problem.
       errors: 0,
     }]);
   });
+
+  it('returns all matches', () => {
+    const text = repeat('foo bar ', 5);
+    assert.equal(search(text, 'foo', 0).length, 5);
+  });
+
+  it('returns all matches for a long pattern', () => {
+    const str = 'This is a string which exceeds the "word size" of the JS language.';
+    const text = repeat(str, 5);
+    assert.equal(search(text, str, 0).length, 5);
+  });
+
+  it('allows an empty text', () => {
+    assert.deepEqual(search('', 'foo', 0), []);
+  });
+
+  it('allows an empty pattern', () => {
+    assert.deepEqual(search('foo', '', 0), []);
+  });
 });

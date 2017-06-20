@@ -107,6 +107,8 @@ interface Context {
    * String.charCodeAt(...).
    */
   peq: Array<number[]>;
+  /** Bit masks with a single bit set indicating the last row in each block. */
+  lastRowMask: number[];
 }
 
 /**
@@ -126,9 +128,6 @@ function advanceBlock(ctx: Context, b: number, t: number, hIn: number) {
   let eq = ctx.peq[t][b];
   let hOut = 0;
 
-  // Mask for the bit representing the last row of this block.
-  const matchMask = 1 << 31;
-
   // Step 1: Compute horizontal deltas.
   const xV = eq | mV;
   if (hIn < 0) {
@@ -140,9 +139,9 @@ function advanceBlock(ctx: Context, b: number, t: number, hIn: number) {
   let mH = pV & xH;
 
   // Step 2: Update score (value of last row of this block).
-  if (pH & matchMask) {
+  if (pH & ctx.lastRowMask[b]) {
     hOut += 1;
-  } else if (mH & matchMask) {
+  } else if (mH & ctx.lastRowMask[b]) {
     hOut -= 1;
   }
 
@@ -189,7 +188,9 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     P: Array(bMax + 1).fill(0),
     M: Array(bMax + 1).fill(0),
     peq: [] as Array<number[]>,
+    lastRowMask: Array(bMax + 1).fill(1 << 31),
   };
+  ctx.lastRowMask[bMax] = 1 << ((pattern.length - 1) % w);
 
   // Calculate `ctx.peq` - the locations of chars within the pattern.
   for (let c = 0; c < text.length; c += 1) {
@@ -210,7 +211,11 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       // pattern contained a wildcard char in that position.
       for (let r = 0; r < w; r += 1) {
         const idx = (b * w) + r;
-        const match = idx >= pattern.length || pattern.charCodeAt(idx) === val;
+        if (idx >= pattern.length) {
+          continue;
+        }
+
+        const match = pattern.charCodeAt(idx) === val;
         if (match) {
           ctx.peq[val][b] |= (1 << r);
         }
@@ -218,25 +223,15 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     }
   }
 
-  // Add a dummy entry for "wildcard" chars at the end of the text which match
-  // the pattern in every position.
-  ctx.peq[0] = Array(bMax + 1);
-  for (let b = 0; b <= bMax; b += 1) {
-    ctx.peq[0][b] = ~0;
-  }
-
-  // Length of wildcard char padding "added" to pattern to make its length a
-  // multiple of the word size.
-  const padding = w - (pattern.length % w);
-
   // Index of last-active block level in the column.
   let y = Math.max(0, Math.ceil(maxErrors / w) - 1);
 
-  // Minimum error count at bottom of each block.
+  // Initialize maximum error count at bottom of each block.
   const score = [];
   for (let b = 0; b <= y; b += 1) {
     score[b] = (b + 1) * w;
   }
+  score[bMax] = (bMax * w) + (pattern.length % w);
 
   // Initialize vertical deltas for each block.
   for (let b = 0; b <= y; b += 1) {
@@ -246,8 +241,8 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
   // Process each char of the text, computing the error count for `w` chars of
   // the pattern at a time.
-  for (let j = 0; j < text.length + padding; j += 1) {
-    const ch = j >= text.length ? 0 : text.charCodeAt(j);
+  for (let j = 0; j < text.length; j += 1) {
+    const ch = text.charCodeAt(j);
 
     // Calculate error count for blocks that we definitely have to process for
     // this column.
@@ -270,7 +265,8 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       ctx.P[y] = ~0;
       ctx.M[y] = 0;
 
-      score[y] = score[y - 1] + w - carry + advanceBlock(ctx, y, ch, carry);
+      const maxBlockScore = y === bMax ? (pattern.length % w) : w;
+      score[y] = score[y - 1] + maxBlockScore - carry + advanceBlock(ctx, y, ch, carry);
     } else {
       // Error count for bottom block exceeds threshold, reduce the number of
       // blocks processed for the next column.
@@ -282,7 +278,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     // If error count is under threshold, report a match.
     if (y === ctx.bMax && score[y] <= maxErrors) {
       matches.push({
-        end: j - padding + 1,
+        end: j + 1,
         errors: score[y],
         start: -1,
       });

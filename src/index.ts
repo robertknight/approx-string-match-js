@@ -235,7 +235,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   for (let b = 0; b <= y; b += 1) {
     score[b] = (b + 1) * w;
   }
-  score[bMax] = (bMax * w) + (pattern.length % w);
+  score[bMax] = pattern.length;
 
   // Initialize vertical deltas for each block.
   for (let b = 0; b <= y; b += 1) {
@@ -274,7 +274,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     } else {
       // Error count for bottom block exceeds threshold, reduce the number of
       // blocks processed for the next column.
-      while (score[y] >= maxErrors + w) {
+      while (y > 0 && score[y] >= maxErrors + w) {
         y -= 1;
       }
     }

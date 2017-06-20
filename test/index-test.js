@@ -137,12 +137,6 @@ the solution of any problem.
     });
   });
 
-  fixtures.longPattern.forEach(([text, pattern, matches], idx) => {
-    it(`supports patterns > 32 chars ${idx}`, () => {
-      check(search, text, pattern, matches);
-    });
-  });
-
   it('returns correct match if "maxErrors" exceeds pattern length by word size', () => {
     assert.deepEqual(search('four score', 'score', 50), [{
       start: 5,
@@ -156,17 +150,44 @@ the solution of any problem.
     assert.equal(search(text, 'foo', 0).length, 5);
   });
 
-  it('returns all matches for a long pattern', () => {
-    const str = 'This is a string which exceeds the "word size" of the JS language.';
-    const text = repeat(str, 5);
-    assert.equal(search(text, str, 0).length, 5);
-  });
-
   it('allows an empty text', () => {
     assert.deepEqual(search('', 'foo', 0), []);
   });
 
   it('allows an empty pattern', () => {
     assert.deepEqual(search('foo', '', 0), []);
+  });
+
+  context('when pattern length equals block size', () => {
+    const text = 'This is a string which exceeds the "word size" of the JS language.';
+
+    it('finds matches', () => {
+      const start = 1;
+      const end = 33;
+      const pat = text.slice(start, end);
+      assert.deepEqual(search(text, pat, 0), [{ start, end, errors: 0 }]);
+    });
+  });
+
+  context('when pattern length exceeds block size', () => {
+    it('finds matches', () => {
+      const text = 'This is a string which exceeds the "word size" of the JS language.';
+      const start = 23;
+      const end = 56;
+      const pat = text.slice(start, end);
+      assert.deepEqual(search(text, pat, 0), [{ start, end, errors: 0 }]);
+    });
+
+    fixtures.longPattern.forEach(([text, pattern, matches], idx) => {
+      it(`returns matches ${idx}`, () => {
+        check(search, text, pattern, matches);
+      });
+    });
+
+    it('returns all matches for a long pattern', () => {
+      const str = 'This is a string which exceeds the "word size" of the JS language.';
+      const text = repeat(str, 5);
+      assert.equal(search(text, str, 0).length, 5);
+    });
   });
 });

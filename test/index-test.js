@@ -142,4 +142,12 @@ the solution of any problem.
       check(search, text, pattern, matches);
     });
   });
+
+  it('returns correct match if "maxErrors" exceeds pattern length by word size', () => {
+    assert.deepEqual(search('four score', 'score', 50), [{
+      start: 5,
+      end: 10,
+      errors: 0,
+    }]);
+  });
 });

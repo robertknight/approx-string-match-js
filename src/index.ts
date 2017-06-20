@@ -174,6 +174,10 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     return [];
   }
 
+  // Clamp error count so we can rely on the `maxErrors` and `pattern.length`
+  // rows being in the same block below.
+  maxErrors = Math.min(maxErrors, pattern.length);
+
   const matches = [];
 
   // Word size.

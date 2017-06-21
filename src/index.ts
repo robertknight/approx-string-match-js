@@ -47,6 +47,13 @@ function reverse(s: string) {
   return s.split('').reverse().join('');
 }
 
+function fill<T>(ary: T[], x: T) {
+  for (let i = 0; i < ary.length; i += 1) {
+    ary[i] = x;
+  }
+  return ary;
+}
+
 /**
  * Given the ends of approximate matches for `pattern` in `text`, find
  * the start of the matches.
@@ -189,10 +196,10 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   // Context used across block calculations.
   const ctx = {
     bMax,
-    P: Array(bMax + 1).fill(0),
-    M: Array(bMax + 1).fill(0),
+    P: fill(Array(bMax + 1), 0),
+    M: fill(Array(bMax + 1), 0),
     peq: [] as Array<number[]>,
-    lastRowMask: Array(bMax + 1).fill(1 << 31),
+    lastRowMask: fill(Array(bMax + 1), 1 << 31),
   };
   ctx.lastRowMask[bMax] = 1 << ((pattern.length - 1) % w);
 

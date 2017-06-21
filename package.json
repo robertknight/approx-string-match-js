@@ -1,6 +1,6 @@
 {
   "name": "approx-string-match",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "main": "./dist/index.js",
   "repository": "https://github.com/robertknight/approx-string-match-js.git",
   "author": "Robert Knight <robertknight@gmail.com>",

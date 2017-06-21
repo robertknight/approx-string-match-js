@@ -96,44 +96,56 @@ function check(searchFn, text, pattern, matches) {
 }
 
 describe('search', () => {
-  fixtures.exactMatch.forEach(([text, pattern, matches], idx) => {
-    it(`finds exact matches (${idx})`, () => {
-      check(search, text, pattern, matches);
+  context('when there are no errors', () => {
+    fixtures.exactMatch.forEach(([text, pattern, matches], idx) => {
+      it(`finds matches (${idx})`, () => {
+        check(search, text, pattern, matches);
+      });
     });
   });
 
-  fixtures.oneError.forEach(([text, pattern, matches], idx) => {
-    it(`finds matches with one error (${idx})`, () => {
-      check(search, text, pattern, matches);
+  context('when there is one error', () => {
+    fixtures.oneError.forEach(([text, pattern, matches], idx) => {
+      it(`finds matches (${idx})`, () => {
+        check(search, text, pattern, matches);
+      });
     });
   });
 
-  fixtures.manyErrors.forEach(([text, pattern, matches], idx) => {
-    it(`finds matches with many errors (${idx})`, () => {
-      check(search, text, pattern, matches);
+  context('when there are many errors', () => {
+    fixtures.manyErrors.forEach(([text, pattern, matches], idx) => {
+      it(`finds matches (${idx})`, () => {
+        check(search, text, pattern, matches);
+      });
     });
   });
 
-  fixtures.unicode.forEach(([text, pattern, matches], idx) => {
-    it(`finds matches in text with complex chars (${idx})`, () => {
-      check(search, text, pattern, matches);
+  context('when pattern contains non-BMP unicode chars', () => {
+    fixtures.unicode.forEach(([text, pattern, matches], idx) => {
+      it(`finds matches (${idx})`, () => {
+        check(search, text, pattern, matches);
+      });
     });
   });
 
-  it('returns an empty array if there is no match for the given error limit', () => {
-    const matches = search('four candles', 'foouur', 1);
-    assert.deepEqual(matches, []);
+  context('when there is no match', () => {
+    it('returns an empty array', () => {
+      const matches = search('four candles', 'foouur', 1);
+      assert.deepEqual(matches, []);
+    });
   });
 
-  it('finds a match with a short pattern in a long text', () => {
-    const text = `
-A great discovery solves a great problem but there is a grain of discovery in
-the solution of any problem.
-`;
-    const pattern = 'discvery';
-    const matches = search(text, pattern, 2);
-    matches.forEach((m) => {
-      assert.equal(text.slice(m.start, m.end), 'discovery');
+  context('when the text is "long"', () => {
+    it('finds a match with a short pattern', () => {
+      const text = `
+  A great discovery solves a great problem but there is a grain of discovery in
+  the solution of any problem.
+  `;
+      const pattern = 'discvery';
+      const matches = search(text, pattern, 2);
+      matches.forEach((m) => {
+        assert.equal(text.slice(m.start, m.end), 'discovery');
+      });
     });
   });
 
@@ -145,9 +157,11 @@ the solution of any problem.
     }]);
   });
 
-  it('returns all matches', () => {
-    const text = repeat('foo bar ', 5);
-    assert.equal(search(text, 'foo', 0).length, 5);
+  context('when there are multiple matches', () => {
+    it('returns all matches', () => {
+      const text = repeat('foo bar ', 5);
+      assert.equal(search(text, 'foo', 0).length, 5);
+    });
   });
 
   it('allows an empty text', () => {

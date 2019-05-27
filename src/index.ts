@@ -44,7 +44,10 @@ export interface Match {
 }
 
 function reverse(s: string) {
-  return s.split('').reverse().join('');
+  return s
+    .split("")
+    .reverse()
+    .join("");
 }
 
 function fill<T>(ary: T[], x: T) {
@@ -62,12 +65,16 @@ function fill<T>(ary: T[], x: T) {
  * text.
  * @return Matches with the `start` property set.
  */
-function findMatchStarts(text: string, pattern: string, matches: Match[],
-                         findEndFn: (t: string, p: string, k: number) => Match[]) {
+function findMatchStarts(
+  text: string,
+  pattern: string,
+  matches: Match[],
+  findEndFn: (t: string, p: string, k: number) => Match[]
+) {
   const minCost = Math.min(...matches.map(m => m.errors));
   return matches
     .filter(m => m.errors === minCost)
-    .map((m) => {
+    .map(m => {
       // Find start of each match by reversing the pattern and matching segment
       // of text and searching for an approx match with the same number of
       // errors.
@@ -87,7 +94,7 @@ function findMatchStarts(text: string, pattern: string, matches: Match[],
       return {
         start,
         end: m.end,
-        errors: m.errors,
+        errors: m.errors
       };
     });
 }
@@ -199,9 +206,9 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     P: fill(Array(bMax + 1), 0),
     M: fill(Array(bMax + 1), 0),
     peq: [] as Array<number[]>,
-    lastRowMask: fill(Array(bMax + 1), 1 << 31),
+    lastRowMask: fill(Array(bMax + 1), 1 << 31)
   };
-  ctx.lastRowMask[bMax] = 1 << ((pattern.length - 1) % w);
+  ctx.lastRowMask[bMax] = 1 << (pattern.length - 1) % w;
 
   // Calculate `ctx.peq` - the locations of chars within the pattern.
   for (let c = 0; c < pattern.length; c += 1) {
@@ -221,21 +228,21 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       // For indexes beyond the end of the pattern, always set the bit as if the
       // pattern contained a wildcard char in that position.
       for (let r = 0; r < w; r += 1) {
-        const idx = (b * w) + r;
+        const idx = b * w + r;
         if (idx >= pattern.length) {
           continue;
         }
 
         const match = pattern.charCodeAt(idx) === val;
         if (match) {
-          ctx.peq[val][b] |= (1 << r);
+          ctx.peq[val][b] |= 1 << r;
         }
       }
     }
   }
 
   // Add a dummy entry for chars in the text which do not occur in the pattern.
-  ctx.peq[-1] = Array(bMax+1);
+  ctx.peq[-1] = Array(bMax + 1);
   for (let b = 0; b <= bMax; b += 1) {
     ctx.peq[-1][b] = 0;
   }
@@ -260,7 +267,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   // the pattern at a time.
   for (let j = 0; j < text.length; j += 1) {
     let ch = text.charCodeAt(j);
-    if (typeof ctx.peq[ch] === 'undefined') {
+    if (typeof ctx.peq[ch] === "undefined") {
       // Set char code to the placeholder that represents chars which do not
       // occur in the pattern.
       ch = -1;
@@ -276,10 +283,11 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
     // Check if we also need to compute an additional block, or if we can reduce
     // the number of blocks processed for the next column.
-    if ((score[y] - carry) <= maxErrors &&
-        (y < ctx.bMax) &&
-        ((ctx.peq[ch][y + 1] & 1) ||
-        (carry < 0))) {
+    if (
+      score[y] - carry <= maxErrors &&
+      y < ctx.bMax &&
+      (ctx.peq[ch][y + 1] & 1 || carry < 0)
+    ) {
       // Error count for bottom block is under threshold, increase the number of
       // blocks processed for this column & next by 1.
       y += 1;
@@ -287,8 +295,9 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       ctx.P[y] = ~0;
       ctx.M[y] = 0;
 
-      const maxBlockScore = y === bMax ? (pattern.length % w) : w;
-      score[y] = score[y - 1] + maxBlockScore - carry + advanceBlock(ctx, y, ch, carry);
+      const maxBlockScore = y === bMax ? pattern.length % w : w;
+      score[y] =
+        score[y - 1] + maxBlockScore - carry + advanceBlock(ctx, y, ch, carry);
     } else {
       // Error count for bottom block exceeds threshold, reduce the number of
       // blocks processed for the next column.
@@ -302,7 +311,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       matches.push({
         end: j + 1,
         errors: score[y],
-        start: -1,
+        start: -1
       });
     }
   }
@@ -313,7 +322,11 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 /**
  * Search for matches for `pattern` in `text` allowing up to `maxErrors` errors.
  */
-export default function search(text: string, pattern: string, maxErrors: number) {
+export default function search(
+  text: string,
+  pattern: string,
+  maxErrors: number
+) {
   const matches = findMatchEnds(text, pattern, maxErrors);
   return findMatchStarts(text, pattern, matches, findMatchEnds);
 }

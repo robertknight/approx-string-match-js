@@ -7,14 +7,14 @@
   "license": "MIT",
   "devDependencies": {
     "chai": "^3.5.0",
-    "eslint": "^3.17.0",
-    "eslint-config-airbnb-base": "^11.1.1",
-    "eslint-plugin-import": "^2.2.0",
     "mocha": "^3.2.0",
+    "prettier": "1.17.1",
     "typescript": "^3.4.5"
   },
   "scripts": {
     "build": "tsc",
+    "checkformatting": "prettier --check **/*.ts",
+    "format": "prettier --write **/*.ts",
     "prepublish": "yarn run build",
     "test": "mocha",
     "watch": "tsc --watch"

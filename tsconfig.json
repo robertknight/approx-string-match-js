@@ -4,6 +4,7 @@
     "module": "commonjs",
     "lib": ["es2015"],
     "outDir": "./dist",
+    "declaration": true,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

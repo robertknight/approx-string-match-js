@@ -31,7 +31,7 @@
 /**
  * Represents a match returned by a call to `search`.
  */
-interface Match {
+export interface Match {
   /** Start offset within the text string of the match. */
   start: number;
   /** End offset within the text string of the match. */

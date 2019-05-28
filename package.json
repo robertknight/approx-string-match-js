@@ -6,6 +6,8 @@
   "author": "Robert Knight <robertknight@gmail.com>",
   "license": "MIT",
   "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
     "chai": "^3.5.0",
     "mocha": "^6.1.4",
     "prettier": "1.17.1",

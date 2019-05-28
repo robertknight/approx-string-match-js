@@ -50,13 +50,6 @@ function reverse(s: string) {
     .join("");
 }
 
-function fill<T>(ary: T[], x: T) {
-  for (let i = 0; i < ary.length; i += 1) {
-    ary[i] = x;
-  }
-  return ary;
-}
-
 /**
  * Given the ends of approximate matches for `pattern` in `text`, find
  * the start of the matches.
@@ -109,9 +102,9 @@ interface Context {
    * ie. `P[b][i]` is set if the vertical delta for the i'th row in the b'th
    * block is positive.
    */
-  P: number[];
+  P: Uint32Array;
   /** Bit-arrays of negative vertical deltas. */
-  M: number[];
+  M: Uint32Array;
   /**
    * Map of alphabet character value to bit-arrays indicating where that
    * character appears in the pattern.
@@ -120,9 +113,9 @@ interface Context {
    * pattern is equal to the character value `v`, where 'v' is the result of
    * String.charCodeAt(...).
    */
-  peq: Array<number[]>;
+  peq: Map<number, Uint32Array>;
   /** Bit masks with a single bit set indicating the last row in each block. */
-  lastRowMask: number[];
+  lastRowMask: Uint32Array;
 }
 
 /**
@@ -139,7 +132,7 @@ interface Context {
 function advanceBlock(ctx: Context, b: number, t: number, hIn: number) {
   let pV = ctx.P[b];
   let mV = ctx.M[b];
-  let eq = ctx.peq[t][b];
+  let eq = ctx.peq.get(t)![b];
   let hOut = 0;
 
   // Step 1: Compute horizontal deltas.
@@ -203,26 +196,27 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   // Context used across block calculations.
   const ctx = {
     bMax,
-    P: fill(Array(bMax + 1), 0),
-    M: fill(Array(bMax + 1), 0),
-    peq: [] as Array<number[]>,
-    lastRowMask: fill(Array(bMax + 1), 1 << 31)
+    P: new Uint32Array(bMax + 1),
+    M: new Uint32Array(bMax + 1),
+    peq: new Map<number, Uint32Array>(),
+    lastRowMask: new Uint32Array(bMax + 1)
   };
+  ctx.lastRowMask.fill(1 << 31);
   ctx.lastRowMask[bMax] = 1 << (pattern.length - 1) % w;
 
   // Calculate `ctx.peq` - the locations of chars within the pattern.
   for (let c = 0; c < pattern.length; c += 1) {
     const val = pattern.charCodeAt(c);
-    if (ctx.peq[val]) {
+    if (ctx.peq.has(val)) {
       // Duplicate char in pattern.
       continue;
     }
 
     // `ctx.peq[val]` is a bit-array where each int represents a 32-char slice
     // of the pattern.
-    ctx.peq[val] = Array(bMax + 1);
+    ctx.peq.set(val, new Uint32Array(bMax + 1));
     for (let b = 0; b <= bMax; b += 1) {
-      ctx.peq[val][b] = 0;
+      ctx.peq.get(val)![b] = 0;
 
       // Set all the bits where the pattern matches the current char (ch).
       // For indexes beyond the end of the pattern, always set the bit as if the
@@ -235,23 +229,23 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
         const match = pattern.charCodeAt(idx) === val;
         if (match) {
-          ctx.peq[val][b] |= 1 << r;
+          ctx.peq.get(val)![b] |= 1 << r;
         }
       }
     }
   }
 
   // Add a dummy entry for chars in the text which do not occur in the pattern.
-  ctx.peq[-1] = Array(bMax + 1);
+  ctx.peq.set(-1, new Uint32Array(bMax + 1));
   for (let b = 0; b <= bMax; b += 1) {
-    ctx.peq[-1][b] = 0;
+    ctx.peq.get(-1)![b] = 0;
   }
 
   // Index of last-active block level in the column.
   let y = Math.max(0, Math.ceil(maxErrors / w) - 1);
 
   // Initialize maximum error count at bottom of each block.
-  const score = [];
+  const score = new Uint32Array(bMax + 1);
   for (let b = 0; b <= y; b += 1) {
     score[b] = (b + 1) * w;
   }
@@ -267,7 +261,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   // the pattern at a time.
   for (let j = 0; j < text.length; j += 1) {
     let ch = text.charCodeAt(j);
-    if (typeof ctx.peq[ch] === "undefined") {
+    if (!ctx.peq.has(ch)) {
       // Set char code to the placeholder that represents chars which do not
       // occur in the pattern.
       ch = -1;
@@ -286,7 +280,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     if (
       score[y] - carry <= maxErrors &&
       y < ctx.bMax &&
-      (ctx.peq[ch][y + 1] & 1 || carry < 0)
+      (ctx.peq.get(ch)![y + 1] & 1 || carry < 0)
     ) {
       // Error count for bottom block is under threshold, increase the number of
       // blocks processed for this column & next by 1.

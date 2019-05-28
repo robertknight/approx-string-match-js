@@ -1,6 +1,6 @@
 const { assert } = require('chai');
 
-const search = require('../dist').default;
+const search = require('../src').default;
 
 function repeat(str, n) {
   let out = '';

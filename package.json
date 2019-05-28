@@ -6,9 +6,12 @@
   "author": "Robert Knight <robertknight@gmail.com>",
   "license": "MIT",
   "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
     "chai": "^3.5.0",
-    "mocha": "^3.2.0",
+    "mocha": "^6.1.4",
     "prettier": "1.17.1",
+    "ts-node": "^8.2.0",
     "typescript": "^3.4.5"
   },
   "scripts": {
@@ -16,7 +19,7 @@
     "checkformatting": "prettier --check **/*.ts",
     "format": "prettier --write **/*.ts",
     "prepublish": "yarn run build",
-    "test": "mocha",
+    "test": "mocha -r ts-node/register --extension ts",
     "watch": "tsc --watch"
   },
   "files": [

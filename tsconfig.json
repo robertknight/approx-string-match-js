@@ -3,6 +3,7 @@
     "target": "es5",
     "module": "commonjs",
     "lib": ["es2015"],
+    "rootDir": "src",
     "outDir": "./dist",
     "declaration": true,
     "strict": true,
@@ -10,5 +11,8 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
-  }
+  },
+  "include": [
+    "src"
+  ]
 }

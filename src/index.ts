@@ -58,38 +58,31 @@ function reverse(s: string) {
  * text.
  * @return Matches with the `start` property set.
  */
-function findMatchStarts(
-  text: string,
-  pattern: string,
-  matches: Match[],
-  findEndFn: (t: string, p: string, k: number) => Match[]
-) {
-  const minCost = Math.min(...matches.map(m => m.errors));
-  return matches
-    .filter(m => m.errors === minCost)
-    .map(m => {
-      // Find start of each match by reversing the pattern and matching segment
-      // of text and searching for an approx match with the same number of
-      // errors.
-      const minStart = Math.max(0, m.end - pattern.length - m.errors);
-      const textRev = reverse(text.slice(minStart, m.end));
-      const patRev = reverse(pattern);
+function findMatchStarts(text: string, pattern: string, matches: Match[]) {
+  const patRev = reverse(pattern);
 
-      // If there are multiple possible start points, choose the one that
-      // maximizes the length of the match.
-      const start = findEndFn(textRev, patRev, m.errors).reduce((min, rm) => {
-        if (m.end - rm.end < min) {
-          return m.end - rm.end;
-        }
-        return min;
-      }, m.end);
+  return matches.map(m => {
+    // Find start of each match by reversing the pattern and matching segment
+    // of text and searching for an approx match with the same number of
+    // errors.
+    const minStart = Math.max(0, m.end - pattern.length - m.errors);
+    const textRev = reverse(text.slice(minStart, m.end));
 
-      return {
-        start,
-        end: m.end,
-        errors: m.errors
-      };
-    });
+    // If there are multiple possible start points, choose the one that
+    // maximizes the length of the match.
+    const start = findMatchEnds(textRev, patRev, m.errors).reduce((min, rm) => {
+      if (m.end - rm.end < min) {
+        return m.end - rm.end;
+      }
+      return min;
+    }, m.end);
+
+    return {
+      start,
+      end: m.end,
+      errors: m.errors
+    };
+  });
 }
 
 /**
@@ -173,6 +166,9 @@ function advanceBlock(ctx: Context, peq: Uint32Array, b: number, hIn: number) {
 
 /**
  * Find the ends and error counts for matches of `pattern` in `text`.
+ *
+ * Only the matches with the lowest error count are reported. Other matches
+ * with error counts <= maxErrors are discarded.
  *
  * This is the block-based search algorithm from Fig. 9 on p.410 of [1].
  */
@@ -300,11 +296,22 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
     // If error count is under threshold, report a match.
     if (y === ctx.bMax && score[y] <= maxErrors) {
+      if (score[y] < maxErrors) {
+        // Discard any earlier, worse matches.
+        matches.splice(0, matches.length);
+      }
+
       matches.push({
+        start: -1,
         end: j + 1,
-        errors: score[y],
-        start: -1
+        errors: score[y]
       });
+
+      // Because `search` only reports the matches with the lowest error count,
+      // we can "ratchet down" the max error threshold whenever a match is
+      // encountered and thereby save a small amount of work for the remainder
+      // of the text.
+      maxErrors = score[y];
     }
   }
 
@@ -313,6 +320,9 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
 /**
  * Search for matches for `pattern` in `text` allowing up to `maxErrors` errors.
+ *
+ * Returns the start, and end positions and error counts for each lowest-cost
+ * match. Only the "best" matches are returned.
  */
 export default function search(
   text: string,
@@ -320,5 +330,5 @@ export default function search(
   maxErrors: number
 ) {
   const matches = findMatchEnds(text, pattern, maxErrors);
-  return findMatchStarts(text, pattern, matches, findMatchEnds);
+  return findMatchStarts(text, pattern, matches);
 }

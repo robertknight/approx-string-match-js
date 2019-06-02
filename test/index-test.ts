@@ -255,12 +255,19 @@ describe("multiSearch", () => {
 
   [
     {
+      description: "two patterns, similar lengths",
       text: texts.macbeth,
       patterns: ["fair is foul", "upon the heath"],
       maxErrors: 4
+    },
+    {
+      description: "two patterns, different lengths",
+      text: texts.macbeth,
+      patterns: ["Fair is", "Upon the heath"],
+      maxErrors: 0
     }
-  ].forEach(({ text, patterns, maxErrors }) => {
-    it("finds matches for all patterns", () => {
+  ].forEach(({ description, text, patterns, maxErrors }) => {
+    it(`finds matches for all patterns ${description}`, () => {
       const matches = multiSearch(text, patterns, maxErrors);
       patterns.forEach((_, i) => assert.equal(matches[i].length, 1));
     });

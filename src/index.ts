@@ -369,6 +369,7 @@ function findMatchRegions(
     return [];
   }
 
+  const minPatternLen = Math.min(...patterns.map(p => p.length));
   const maxPatternLen = Math.max(...patterns.map(p => p.length));
 
   // Clamp error count so we can rely on the `maxErrors` and `maxPatternLen`
@@ -415,12 +416,12 @@ function findMatchRegions(
       // pattern contained a wildcard char in that position.
       for (let r = 0; r < w; r += 1) {
         const idx = b * w + r;
+        if (idx >= maxPatternLen) {
+          break;
+        }
         patterns.forEach(pattern => {
-          if (idx >= pattern.length) {
-            return;
-          }
-
-          const match = pattern.charCodeAt(idx) === val;
+          const match =
+            pattern.length <= idx || pattern.charCodeAt(idx) === val;
           if (match) {
             peq[b] |= 1 << r;
           }
@@ -431,6 +432,15 @@ function findMatchRegions(
 
   // Dummy "peq" array for chars in the text which do not occur in the pattern.
   const emptyPeq = new Uint32Array(bMax + 1);
+
+  // In case some patterns are shorter than others, any chars in the text which
+  // do not occur in any of the patterns must match at positions which are
+  // beyond the end of the short patterns.
+  for (let i = minPatternLen; i < maxPatternLen; i++) {
+    const b = (i / w) | 0;
+    const r = i % w;
+    emptyPeq[b] |= 1 << r;
+  }
 
   // Index of last-active block level in the column.
   let y = Math.max(0, Math.ceil(maxErrors / w) - 1);

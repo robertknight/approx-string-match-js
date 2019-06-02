@@ -43,9 +43,19 @@ export interface Match {
   errors: number;
 }
 
-interface Region {
+export interface Region {
   start: number;
   end: number;
+}
+
+/**
+ * Result of a search for multiple patterns in a text.
+ *
+ * This is an array with some additional information about the search that
+ * is useful for calculating efficiency metrics.
+ */
+export interface MultiSearchResult extends Array<Match[]> {
+  regions: Region[];
 }
 
 function reverse(s: string) {
@@ -242,27 +252,31 @@ function findMatchEnds(
     }
   }
 
+  const score = new Uint32Array(bMax + 1);
+
   // Dummy "peq" array for chars in the text which do not occur in the pattern.
   const emptyPeq = new Uint32Array(bMax + 1);
 
-  // Index of last-active block level in the column.
-  let y = Math.max(0, Math.ceil(maxErrors / w) - 1);
-
-  // Initialize maximum error count at bottom of each block.
-  const score = new Uint32Array(bMax + 1);
-  for (let b = 0; b <= y; b += 1) {
-    score[b] = (b + 1) * w;
-  }
-  score[bMax] = pattern.length;
-
-  // Initialize vertical deltas for each block.
-  for (let b = 0; b <= y; b += 1) {
-    ctx.P[b] = ~0;
-    ctx.M[b] = 0;
-  }
-
   for (let r = 0; r < regions.length; r++) {
     const region = regions[r];
+
+    // At the start of each region, we use reset `y`, `score`, `ctx.P` and
+    // `ctx.M` as if this was the start of the text.
+
+    // Index of last-active block level in the column.
+    let y = Math.max(0, Math.ceil(maxErrors / w) - 1);
+
+    // Initialize maximum error count at bottom of each block.
+    for (let b = 0; b <= y; b += 1) {
+      score[b] = (b + 1) * w;
+    }
+    score[bMax] = pattern.length;
+
+    // Initialize vertical deltas for each block.
+    for (let b = 0; b <= y; b += 1) {
+      ctx.P[b] = ~0;
+      ctx.M[b] = 0;
+    }
 
     // Process each char of the text, computing the error count for `w` chars of
     // the pattern at a time.
@@ -341,15 +355,159 @@ function findMatchEnds(
  *
  * This function will return every region that does contain a match, but may
  * also return some regions which do not match.
+ *
+ * The implementation is largely the same as `findMatchEnds`, except that it
+ * finds matches for a "superimposed" pattern where each position `i` matches
+ * `p1[i]`, `p2[i]` etc. (where p1..pN are the individual patterns).
  */
 function findMatchRegions(
   text: string,
   patterns: string[],
   maxErrors: number
 ): Region[] {
-  patterns = patterns;
-  maxErrors = maxErrors;
-  return [{ start: 0, end: text.length }];
+  if (patterns.length === 0) {
+    return [];
+  }
+
+  const maxPatternLen = Math.max(...patterns.map(p => p.length));
+
+  // Clamp error count so we can rely on the `maxErrors` and `maxPatternLen`
+  // rows being in the same block below.
+  maxErrors = Math.min(maxErrors, maxPatternLen);
+
+  const regions: Region[] = [];
+
+  // Word size.
+  const w = 32;
+
+  // Index of maximum block level.
+  const bMax = Math.ceil(maxPatternLen / w) - 1;
+
+  // Context used across block calculations.
+  const ctx = {
+    bMax,
+    P: new Uint32Array(bMax + 1),
+    M: new Uint32Array(bMax + 1),
+    peq: new Map<number, Uint32Array>(),
+    lastRowMask: new Uint32Array(bMax + 1)
+  };
+  ctx.lastRowMask.fill(1 << 31);
+  ctx.lastRowMask[bMax] = 1 << (maxPatternLen - 1) % w;
+
+  const combinedPattern = patterns.join("");
+
+  // Calculate `ctx.peq` - a map of character values to bitmasks indicating
+  // positions where that character matches any of the patterns.
+  for (let c = 0; c < combinedPattern.length; c += 1) {
+    const val = combinedPattern.charCodeAt(c);
+    if (ctx.peq.has(val)) {
+      // Duplicate char in pattern.
+      continue;
+    }
+
+    const peq = new Uint32Array(bMax + 1);
+    ctx.peq.set(val, peq);
+    for (let b = 0; b <= bMax; b += 1) {
+      peq[b] = 0;
+
+      // Set all the bits where the pattern matches the current char (ch).
+      // For indexes beyond the end of the pattern, always set the bit as if the
+      // pattern contained a wildcard char in that position.
+      for (let r = 0; r < w; r += 1) {
+        const idx = b * w + r;
+        patterns.forEach(pattern => {
+          if (idx >= pattern.length) {
+            return;
+          }
+
+          const match = pattern.charCodeAt(idx) === val;
+          if (match) {
+            peq[b] |= 1 << r;
+          }
+        });
+      }
+    }
+  }
+
+  // Dummy "peq" array for chars in the text which do not occur in the pattern.
+  const emptyPeq = new Uint32Array(bMax + 1);
+
+  // Index of last-active block level in the column.
+  let y = Math.max(0, Math.ceil(maxErrors / w) - 1);
+
+  // Initialize maximum error count at bottom of each block.
+  const score = new Uint32Array(bMax + 1);
+  for (let b = 0; b <= y; b += 1) {
+    score[b] = (b + 1) * w;
+  }
+  score[bMax] = maxPatternLen;
+
+  // Initialize vertical deltas for each block.
+  for (let b = 0; b <= y; b += 1) {
+    ctx.P[b] = ~0;
+    ctx.M[b] = 0;
+  }
+
+  // Process each char of the text, computing the error count for `w` chars of
+  // the combined pattern at a time.
+  for (let j = 0; j < text.length; j += 1) {
+    // Lookup the bitmask representing the positions of the current char from
+    // the text within the combined pattern.
+    let peq = ctx.peq.get(text.charCodeAt(j));
+    if (typeof peq === "undefined") {
+      peq = emptyPeq;
+    }
+
+    // Calculate error count for blocks that we definitely have to process for
+    // this column.
+    let carry = 0;
+    for (let b = 0; b <= y; b += 1) {
+      carry = advanceBlock(ctx, peq, b, carry);
+      score[b] += carry;
+    }
+
+    // Check if we also need to compute an additional block, or if we can reduce
+    // the number of blocks processed for the next column.
+    if (
+      score[y] - carry <= maxErrors &&
+      y < ctx.bMax &&
+      (peq[y + 1] & 1 || carry < 0)
+    ) {
+      // Error count for bottom block is under threshold, increase the number of
+      // blocks processed for this column & next by 1.
+      y += 1;
+
+      ctx.P[y] = ~0;
+      ctx.M[y] = 0;
+
+      const maxBlockScore = y === bMax ? maxPatternLen % w : w;
+      score[y] =
+        score[y - 1] + maxBlockScore - carry + advanceBlock(ctx, peq, y, carry);
+    } else {
+      // Error count for bottom block exceeds threshold, reduce the number of
+      // blocks processed for the next column.
+      while (y > 0 && score[y] >= maxErrors + w) {
+        y -= 1;
+      }
+    }
+
+    // If error count is under threshold, add this to the regions to search.
+    if (y === ctx.bMax && score[y] <= maxErrors) {
+      const start = Math.max(0, j + 1 - maxPatternLen - score[y]);
+      const end = j + 1;
+
+      // If this region overlaps with the previous one, merge them together,
+      // otherwise create a new region.
+      const rl = regions.length;
+      if (rl > 0 && regions[rl - 1].end >= start) {
+        regions[rl - 1].end = end;
+      } else {
+        regions.push({ start, end });
+      }
+    }
+  }
+
+  return regions;
 }
 
 /**
@@ -367,12 +525,14 @@ export function multiSearch(
   text: string,
   patterns: string[],
   maxErrors: number
-): Array<Match[]> {
+): MultiSearchResult {
   const regions = findMatchRegions(text, patterns, maxErrors);
+  // @ts-ignore
   const matches = patterns.map(pat => {
     const patMatches = findMatchEnds(text, pat, maxErrors, regions);
     return findMatchStarts(text, pat, patMatches);
-  });
+  }) as MultiSearchResult;
+  matches.regions = regions;
   return matches;
 }
 

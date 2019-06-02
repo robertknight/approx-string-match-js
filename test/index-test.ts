@@ -1,6 +1,8 @@
 import { assert } from "chai";
 
-import search, { Match, multiSearch } from "../src";
+import search, { Match, Region, multiSearch } from "../src";
+
+import * as texts from "./texts";
 
 function repeat(str: string, n: number) {
   let out = "";
@@ -229,6 +231,16 @@ describe("search", () => {
   });
 });
 
+/**
+ * Return the proportion of the text that remained after the filtering step
+ * of a `multiSearch`.
+ */
+function calcFilterRatio(textLen: number, regions: Region[]) {
+  let searchedLen = 0;
+  regions.forEach(r => (searchedLen += r.end - r.start));
+  return searchedLen / textLen;
+}
+
 describe("multiSearch", () => {
   it("finds the best matches for each pattern", () => {
     const text = "one two three four five six";
@@ -239,5 +251,34 @@ describe("multiSearch", () => {
     assert.deepEqual(matches[0], [{ start: 0, end: 3, errors: 0 }]);
     assert.deepEqual(matches[1], [{ start: 4, end: 7, errors: 1 }]);
     assert.deepEqual(matches[2], [{ start: 19, end: 23, errors: 1 }]);
+  });
+
+  [
+    {
+      text: texts.macbeth,
+      patterns: ["fair is foul", "upon the heath"],
+      maxErrors: 4
+    }
+  ].forEach(({ text, patterns, maxErrors }) => {
+    it("finds matches for all patterns", () => {
+      const matches = multiSearch(text, patterns, maxErrors);
+      patterns.forEach((_, i) => assert.equal(matches[i].length, 1));
+    });
+  });
+
+  it("narrows the search to regions of the text that may match the pattern", () => {
+    const text = texts.macbeth;
+    const patterns = ["fair is foul", "Upon the heath!"];
+    const expectedMatches = [1, 2];
+
+    const matches = multiSearch(text, patterns, 4);
+    const filterRatio = calcFilterRatio(text.length, matches.regions);
+
+    patterns.forEach((_, i) => {
+      assert.equal(matches[i].length, expectedMatches[i]);
+    });
+
+    assert.isAtLeast(filterRatio, 0);
+    assert.isBelow(filterRatio, 0.5);
   });
 });

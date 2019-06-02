@@ -35,9 +35,10 @@ console.log(matches);
 
 ## API
 
-The library exports a single function `search(text, pattern, maxErrors)` which
-returns an array of the closest matches for _pattern_ in _text_ allowing up to
-_maxErrors_ errors.
+### Searching for a single pattern
+
+The `search(text, pattern, maxErrors)` function returns an array of the closest
+matches for _pattern_ in _text_ allowing up to _maxErrors_ errors.
 
 ```ts
 interface Match {
@@ -47,6 +48,24 @@ interface Match {
 }
 
 search(text: string, pattern: string, maxErrors: number): Match[]
+```
+
+### Searching for multiple patterns
+
+To find matches for any of several patterns, you can call `search` for each
+pattern individually. There is also a `multiSearch` function which
+accepts an array of patterns and returns an array of `Match` arrays. The
+`multiSearch` function can be faster as it first determines which regions of
+the text may match in a single pass over the text, and then searches only
+the candidate regions for matches for each pattern.
+
+```
+interface PatternConfig {
+  pattern: string;
+  maxErrors: number;
+}
+
+multiSearch(text: string, patterns: PatternConfig[]): Array<Match[]>
 ```
 
 ## Implementation notes

@@ -246,7 +246,8 @@ describe("multiSearch", () => {
     const text = "one two three four five six";
     const patterns = ["one", "twwo", "fivve"];
 
-    const matches = multiSearch(text, patterns, 2);
+    const patternConfigs = patterns.map(pattern => ({ pattern, maxErrors: 2 }));
+    const matches = multiSearch(text, patternConfigs);
 
     assert.deepEqual(matches[0], [{ start: 0, end: 3, errors: 0 }]);
     assert.deepEqual(matches[1], [{ start: 4, end: 7, errors: 1 }]);
@@ -268,7 +269,8 @@ describe("multiSearch", () => {
     }
   ].forEach(({ description, text, patterns, maxErrors }) => {
     it(`finds matches for all patterns ${description}`, () => {
-      const matches = multiSearch(text, patterns, maxErrors);
+      const patternConfigs = patterns.map(pattern => ({ pattern, maxErrors }));
+      const matches = multiSearch(text, patternConfigs);
       patterns.forEach((_, i) => assert.equal(matches[i].length, 1));
     });
   });
@@ -278,7 +280,8 @@ describe("multiSearch", () => {
     const patterns = ["fair is foul", "Upon the heath!"];
     const expectedMatches = [1, 2];
 
-    const matches = multiSearch(text, patterns, 4);
+    const patternConfigs = patterns.map(pattern => ({ pattern, maxErrors: 4 }));
+    const matches = multiSearch(text, patternConfigs);
     const filterRatio = calcFilterRatio(text.length, matches.regions);
 
     patterns.forEach((_, i) => {
@@ -287,5 +290,25 @@ describe("multiSearch", () => {
 
     assert.isAtLeast(filterRatio, 0);
     assert.isBelow(filterRatio, 0.5);
+  });
+
+  it("allows different max error counts to be used for each pattern", () => {
+    const text = texts.macbeth;
+    const patternConfigs = [
+      {
+        pattern: "Fair is foul",
+        maxErrors: 0
+      },
+      {
+        pattern: "upon the heath!",
+        maxErrors: 2
+      }
+    ];
+    const expectedMatches = [1, 2];
+
+    const matches = multiSearch(text, patternConfigs);
+    patternConfigs.forEach((_, i) => {
+      assert.equal(matches[i].length, expectedMatches[i]);
+    });
   });
 });

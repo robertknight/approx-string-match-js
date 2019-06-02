@@ -520,6 +520,11 @@ function findMatchRegions(
   return regions;
 }
 
+export interface PatternConfig {
+  pattern: string;
+  maxErrors: number;
+}
+
 /**
  * Search for matches for each pattern in `patterns` in `text` allowing up to
  * `maxErrors` errors.
@@ -529,18 +534,31 @@ function findMatchRegions(
  * substrings of the text which may match _any_ of the patterns, and then only
  * searches those substrings for each match individually.
  *
+ * *Note* - This function only provides a speedup if it can eliminate
+ * significant regions of the text. This typically requires that a) the number
+ * of patterns is small (<= 10) and the max error ratio is low or moderate
+ * (`maxErrors` is <= ~30% of the pattern length).
+ * You can use the `regions` property of the returned array to calculate the
+ * filtering efficiency.
+ *
  * Returns an array of matches for each pattern in the same format as `search`.
+ *
+ * @param text - Text to search
+ * @param patterns - Patterns to search for
  */
 export function multiSearch(
   text: string,
-  patterns: string[],
-  maxErrors: number
+  patterns: PatternConfig[]
 ): MultiSearchResult {
-  const regions = findMatchRegions(text, patterns, maxErrors);
-  // @ts-ignore
-  const matches = patterns.map(pat => {
-    const patMatches = findMatchEnds(text, pat, maxErrors, regions);
-    return findMatchStarts(text, pat, patMatches);
+  const maxErrorCount = patterns.reduce((n, p) => Math.max(p.maxErrors, n), 0);
+  const regions = findMatchRegions(
+    text,
+    patterns.map(p => p.pattern),
+    maxErrorCount
+  );
+  const matches = patterns.map(({ pattern, maxErrors }) => {
+    const patMatches = findMatchEnds(text, pattern, maxErrors, regions);
+    return findMatchStarts(text, pattern, patMatches);
   }) as MultiSearchResult;
   matches.regions = regions;
   return matches;

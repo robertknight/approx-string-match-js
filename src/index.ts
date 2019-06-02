@@ -43,6 +43,11 @@ export interface Match {
   errors: number;
 }
 
+interface Region {
+  start: number;
+  end: number;
+}
+
 function reverse(s: string) {
   return s
     .split("")
@@ -172,7 +177,12 @@ function advanceBlock(ctx: Context, peq: Uint32Array, b: number, hIn: number) {
  *
  * This is the block-based search algorithm from Fig. 9 on p.410 of [1].
  */
-function findMatchEnds(text: string, pattern: string, maxErrors: number) {
+function findMatchEnds(
+  text: string,
+  pattern: string,
+  maxErrors: number,
+  regions: Region[] = [{ start: 0, end: text.length }]
+) {
   if (pattern.length === 0) {
     return [];
   }
@@ -251,70 +261,118 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     ctx.M[b] = 0;
   }
 
-  // Process each char of the text, computing the error count for `w` chars of
-  // the pattern at a time.
-  for (let j = 0; j < text.length; j += 1) {
-    // Lookup the bitmask representing the positions of the current char from
-    // the text within the pattern.
-    let peq = ctx.peq.get(text.charCodeAt(j));
-    if (typeof peq === "undefined") {
-      peq = emptyPeq;
-    }
+  for (let r = 0; r < regions.length; r++) {
+    const region = regions[r];
 
-    // Calculate error count for blocks that we definitely have to process for
-    // this column.
-    let carry = 0;
-    for (let b = 0; b <= y; b += 1) {
-      carry = advanceBlock(ctx, peq, b, carry);
-      score[b] += carry;
-    }
-
-    // Check if we also need to compute an additional block, or if we can reduce
-    // the number of blocks processed for the next column.
-    if (
-      score[y] - carry <= maxErrors &&
-      y < ctx.bMax &&
-      (peq[y + 1] & 1 || carry < 0)
-    ) {
-      // Error count for bottom block is under threshold, increase the number of
-      // blocks processed for this column & next by 1.
-      y += 1;
-
-      ctx.P[y] = ~0;
-      ctx.M[y] = 0;
-
-      const maxBlockScore = y === bMax ? pattern.length % w : w;
-      score[y] =
-        score[y - 1] + maxBlockScore - carry + advanceBlock(ctx, peq, y, carry);
-    } else {
-      // Error count for bottom block exceeds threshold, reduce the number of
-      // blocks processed for the next column.
-      while (y > 0 && score[y] >= maxErrors + w) {
-        y -= 1;
-      }
-    }
-
-    // If error count is under threshold, report a match.
-    if (y === ctx.bMax && score[y] <= maxErrors) {
-      if (score[y] < maxErrors) {
-        // Discard any earlier, worse matches.
-        matches.splice(0, matches.length);
+    // Process each char of the text, computing the error count for `w` chars of
+    // the pattern at a time.
+    for (let j = region.start; j < region.end; j += 1) {
+      // Lookup the bitmask representing the positions of the current char from
+      // the text within the pattern.
+      let peq = ctx.peq.get(text.charCodeAt(j));
+      if (typeof peq === "undefined") {
+        peq = emptyPeq;
       }
 
-      matches.push({
-        start: -1,
-        end: j + 1,
-        errors: score[y]
-      });
+      // Calculate error count for blocks that we definitely have to process for
+      // this column.
+      let carry = 0;
+      for (let b = 0; b <= y; b += 1) {
+        carry = advanceBlock(ctx, peq, b, carry);
+        score[b] += carry;
+      }
 
-      // Because `search` only reports the matches with the lowest error count,
-      // we can "ratchet down" the max error threshold whenever a match is
-      // encountered and thereby save a small amount of work for the remainder
-      // of the text.
-      maxErrors = score[y];
+      // Check if we also need to compute an additional block, or if we can reduce
+      // the number of blocks processed for the next column.
+      if (
+        score[y] - carry <= maxErrors &&
+        y < ctx.bMax &&
+        (peq[y + 1] & 1 || carry < 0)
+      ) {
+        // Error count for bottom block is under threshold, increase the number of
+        // blocks processed for this column & next by 1.
+        y += 1;
+
+        ctx.P[y] = ~0;
+        ctx.M[y] = 0;
+
+        const maxBlockScore = y === bMax ? pattern.length % w : w;
+        score[y] =
+          score[y - 1] +
+          maxBlockScore -
+          carry +
+          advanceBlock(ctx, peq, y, carry);
+      } else {
+        // Error count for bottom block exceeds threshold, reduce the number of
+        // blocks processed for the next column.
+        while (y > 0 && score[y] >= maxErrors + w) {
+          y -= 1;
+        }
+      }
+
+      // If error count is under threshold, report a match.
+      if (y === ctx.bMax && score[y] <= maxErrors) {
+        if (score[y] < maxErrors) {
+          // Discard any earlier, worse matches.
+          matches.splice(0, matches.length);
+        }
+
+        matches.push({
+          start: -1,
+          end: j + 1,
+          errors: score[y]
+        });
+
+        // Because `search` only reports the matches with the lowest error count,
+        // we can "ratchet down" the max error threshold whenever a match is
+        // encountered and thereby save a small amount of work for the remainder
+        // of the text.
+        maxErrors = score[y];
+      }
     }
   }
 
+  return matches;
+}
+
+/**
+ * Find regions of the text which _may_ match one or more of the patterns from
+ * `pattern` with up to `maxErrors` errors.
+ *
+ * This function will return every region that does contain a match, but may
+ * also return some regions which do not match.
+ */
+function findMatchRegions(
+  text: string,
+  patterns: string[],
+  maxErrors: number
+): Region[] {
+  patterns = patterns;
+  maxErrors = maxErrors;
+  return [{ start: 0, end: text.length }];
+}
+
+/**
+ * Search for matches for each pattern in `patterns` in `text` allowing up to
+ * `maxErrors` errors.
+ *
+ * This function can be faster than searching for matches for each pattern
+ * individually because it first performs a pass over the text to identify
+ * substrings of the text which may match _any_ of the patterns, and then only
+ * searches those substrings for each match individually.
+ *
+ * Returns an array of matches for each pattern in the same format as `search`.
+ */
+export function multiSearch(
+  text: string,
+  patterns: string[],
+  maxErrors: number
+): Array<Match[]> {
+  const regions = findMatchRegions(text, patterns, maxErrors);
+  const matches = patterns.map(pat => {
+    const patMatches = findMatchEnds(text, pat, maxErrors, regions);
+    return findMatchStarts(text, pat, patMatches);
+  });
   return matches;
 }
 

@@ -1,6 +1,6 @@
 import { assert } from "chai";
 
-import search, { Match } from "../src";
+import search, { Match, multiSearch } from "../src";
 
 function repeat(str: string, n: number) {
   let out = "";
@@ -226,5 +226,18 @@ describe("search", () => {
       const text = repeat(str, 5);
       assert.equal(search(text, str, 0).length, 5);
     });
+  });
+});
+
+describe("multiSearch", () => {
+  it("finds the best matches for each pattern", () => {
+    const text = "one two three four five six";
+    const patterns = ["one", "twwo", "fivve"];
+
+    const matches = multiSearch(text, patterns, 2);
+
+    assert.deepEqual(matches[0], [{ start: 0, end: 3, errors: 0 }]);
+    assert.deepEqual(matches[1], [{ start: 4, end: 7, errors: 1 }]);
+    assert.deepEqual(matches[2], [{ start: 19, end: 23, errors: 1 }]);
   });
 });

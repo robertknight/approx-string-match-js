@@ -198,9 +198,20 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   ctx.lastRowMask.fill(1 << 31);
   ctx.lastRowMask[bMax] = 1 << (pattern.length - 1) % w;
 
+  // Dummy "peq" array for chars in the text which do not occur in the pattern.
+  const emptyPeq = new Uint32Array(bMax + 1);
+
   // Map of UTF-16 character code to bit vector indicating positions in the
   // pattern that equal that character.
   const peq = new Map<number, Uint32Array>();
+
+  // Version of `peq` that only stores mappings for small characters. This
+  // allows faster lookups when iterating through the text because a simple
+  // array lookup can be done instead of a hash table lookup.
+  const asciiPeq = [] as Uint32Array[];
+  for (let i = 0; i < 256; i++) {
+    asciiPeq.push(emptyPeq);
+  }
 
   // Calculate `ctx.peq` - a map of character values to bitmasks indicating
   // positions of that character within the pattern, where each bit represents
@@ -214,6 +225,10 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
     const charPeq = new Uint32Array(bMax + 1);
     peq.set(val, charPeq);
+    if (val < asciiPeq.length) {
+      asciiPeq[val] = charPeq;
+    }
+
     for (let b = 0; b <= bMax; b += 1) {
       charPeq[b] = 0;
 
@@ -233,9 +248,6 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       }
     }
   }
-
-  // Dummy "peq" array for chars in the text which do not occur in the pattern.
-  const emptyPeq = new Uint32Array(bMax + 1);
 
   // Index of last-active block level in the column.
   let y = Math.max(0, Math.ceil(maxErrors / w) - 1);
@@ -258,9 +270,18 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   for (let j = 0; j < text.length; j += 1) {
     // Lookup the bitmask representing the positions of the current char from
     // the text within the pattern.
-    let charPeq = peq.get(text.charCodeAt(j));
-    if (typeof charPeq === "undefined") {
-      charPeq = emptyPeq;
+    const charCode = text.charCodeAt(j);
+    let charPeq;
+
+    if (charCode < asciiPeq.length) {
+      // Fast array lookup.
+      charPeq = asciiPeq[charCode];
+    } else {
+      // Slower hash table lookup.
+      charPeq = peq.get(charCode);
+      if (typeof charPeq === "undefined") {
+        charPeq = emptyPeq;
+      }
     }
 
     // Calculate error count for blocks that we definitely have to process for

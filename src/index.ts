@@ -102,15 +102,6 @@ interface Context {
   P: Uint32Array;
   /** Bit-arrays of negative vertical deltas. */
   M: Uint32Array;
-  /**
-   * Map of alphabet character value to bit-arrays indicating where that
-   * character appears in the pattern.
-   *
-   * ie. `peq[v][b][i]` is set if the i'th character in the b'th segment of the
-   * pattern is equal to the character value `v`, where 'v' is the result of
-   * String.charCodeAt(...).
-   */
-  peq: Map<number, Uint32Array>;
   /** Bit masks with a single bit set indicating the last row in each block. */
   lastRowMask: Uint32Array;
 }
@@ -200,29 +191,31 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
   // Context used across block calculations.
   const ctx = {
-    bMax,
     P: new Uint32Array(bMax + 1),
     M: new Uint32Array(bMax + 1),
-    peq: new Map<number, Uint32Array>(),
     lastRowMask: new Uint32Array(bMax + 1)
   };
   ctx.lastRowMask.fill(1 << 31);
   ctx.lastRowMask[bMax] = 1 << (pattern.length - 1) % w;
+
+  // Map of UTF-16 character code to bit vector indicating positions in the
+  // pattern that equal that character.
+  const peq = new Map<number, Uint32Array>();
 
   // Calculate `ctx.peq` - a map of character values to bitmasks indicating
   // positions of that character within the pattern, where each bit represents
   // a position in the pattern.
   for (let c = 0; c < pattern.length; c += 1) {
     const val = pattern.charCodeAt(c);
-    if (ctx.peq.has(val)) {
+    if (peq.has(val)) {
       // Duplicate char in pattern.
       continue;
     }
 
-    const peq = new Uint32Array(bMax + 1);
-    ctx.peq.set(val, peq);
+    const charPeq = new Uint32Array(bMax + 1);
+    peq.set(val, charPeq);
     for (let b = 0; b <= bMax; b += 1) {
-      peq[b] = 0;
+      charPeq[b] = 0;
 
       // Set all the bits where the pattern matches the current char (ch).
       // For indexes beyond the end of the pattern, always set the bit as if the
@@ -235,7 +228,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
         const match = pattern.charCodeAt(idx) === val;
         if (match) {
-          peq[b] |= 1 << r;
+          charPeq[b] |= 1 << r;
         }
       }
     }
@@ -265,16 +258,16 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   for (let j = 0; j < text.length; j += 1) {
     // Lookup the bitmask representing the positions of the current char from
     // the text within the pattern.
-    let peq = ctx.peq.get(text.charCodeAt(j));
-    if (typeof peq === "undefined") {
-      peq = emptyPeq;
+    let charPeq = peq.get(text.charCodeAt(j));
+    if (typeof charPeq === "undefined") {
+      charPeq = emptyPeq;
     }
 
     // Calculate error count for blocks that we definitely have to process for
     // this column.
     let carry = 0;
     for (let b = 0; b <= y; b += 1) {
-      carry = advanceBlock(ctx, peq, b, carry);
+      carry = advanceBlock(ctx, charPeq, b, carry);
       score[b] += carry;
     }
 
@@ -282,8 +275,8 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     // the number of blocks processed for the next column.
     if (
       score[y] - carry <= maxErrors &&
-      y < ctx.bMax &&
-      (peq[y + 1] & 1 || carry < 0)
+      y < bMax &&
+      (charPeq[y + 1] & 1 || carry < 0)
     ) {
       // Error count for bottom block is under threshold, increase the number of
       // blocks processed for this column & next by 1.
@@ -294,7 +287,10 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
       const maxBlockScore = y === bMax ? pattern.length % w : w;
       score[y] =
-        score[y - 1] + maxBlockScore - carry + advanceBlock(ctx, peq, y, carry);
+        score[y - 1] +
+        maxBlockScore -
+        carry +
+        advanceBlock(ctx, charPeq, y, carry);
     } else {
       // Error count for bottom block exceeds threshold, reduce the number of
       // blocks processed for the next column.
@@ -304,7 +300,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     }
 
     // If error count is under threshold, report a match.
-    if (y === ctx.bMax && score[y] <= maxErrors) {
+    if (y === bMax && score[y] <= maxErrors) {
       if (score[y] < maxErrors) {
         // Discard any earlier, worse matches.
         matches.splice(0, matches.length);

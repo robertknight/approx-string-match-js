@@ -1,5 +1,6 @@
 /**
- * Implementation of Myers' online approximate string matching algorithm [1].
+ * Implementation of Myers' online approximate string matching algorithm [1],
+ * with additional optimizations suggested by [2].
  *
  * This has O((k/w) * n) complexity where `n` is the length of the text, `k` is
  * the maximum number of errors allowed (always <= the pattern length) and `w`
@@ -26,6 +27,9 @@
  *
  * [1] G. Myers, “A Fast Bit-Vector Algorithm for Approximate String Matching
  * Based on Dynamic Programming,” vol. 46, no. 3, pp. 395–415, 1999.
+ *
+ * [2] Šošić, M. (2014). An simd dynamic programming c/c++ library (Doctoral
+ * dissertation, Fakultet Elektrotehnike i računarstva, Sveučilište u Zagrebu).
  */
 
 /**
@@ -98,62 +102,58 @@ interface Context {
   P: Uint32Array;
   /** Bit-arrays of negative vertical deltas. */
   M: Uint32Array;
-  /**
-   * Map of alphabet character value to bit-arrays indicating where that
-   * character appears in the pattern.
-   *
-   * ie. `peq[v][b][i]` is set if the i'th character in the b'th segment of the
-   * pattern is equal to the character value `v`, where 'v' is the result of
-   * String.charCodeAt(...).
-   */
-  peq: Map<number, Uint32Array>;
   /** Bit masks with a single bit set indicating the last row in each block. */
   lastRowMask: Uint32Array;
 }
 
 /**
+ * Return 1 if a number is non-zero or zero otherwise, without using
+ * conditional operators.
+ *
+ * This should get inlined into `advanceBlock` below by the JIT.
+ *
+ * Adapted from https://stackoverflow.com/a/3912218/434243
+ */
+function oneIfNotZero(n: number) {
+  return ((n | -n) >> 31) & 1;
+}
+
+/**
  * Block calculation step of the algorithm.
  *
- * From Fig 8. on p. 408 of [1].
+ * From Fig 8. on p. 408 of [1], additionally optimized to replace conditional
+ * checks with bitwise operations as per Section 4.2.3 of [2].
  *
  * @param ctx - The pattern context object
  * @param peq - The `peq` array for the current character (`ctx.peq.get(ch)`)
  * @param b - The block level
  * @param hIn - Horizontal input delta ∈ {1,0,-1}
- * @return Horizontal output delta
+ * @return Horizontal output delta ∈ {1,0,-1}
  */
 function advanceBlock(ctx: Context, peq: Uint32Array, b: number, hIn: number) {
   let pV = ctx.P[b];
   let mV = ctx.M[b];
-  let eq = peq[b];
-  let hOut = 0;
+  const hInIsNegative = hIn >>> 31; // 1 if hIn < 0 or 0 otherwise.
+  const eq = peq[b] | hInIsNegative;
 
   // Step 1: Compute horizontal deltas.
   const xV = eq | mV;
-  if (hIn < 0) {
-    eq |= 1;
-  }
   const xH = (((eq & pV) + pV) ^ pV) | eq;
 
   let pH = mV | ~(xH | pV);
   let mH = pV & xH;
 
   // Step 2: Update score (value of last row of this block).
-  if (pH & ctx.lastRowMask[b]) {
-    hOut += 1;
-  } else if (mH & ctx.lastRowMask[b]) {
-    hOut -= 1;
-  }
+  const hOut =
+    oneIfNotZero(pH & ctx.lastRowMask[b]) -
+    oneIfNotZero(mH & ctx.lastRowMask[b]);
 
   // Step 3: Update vertical deltas for use when processing next char.
   pH <<= 1;
   mH <<= 1;
 
-  if (hIn < 0) {
-    mH |= 1;
-  } else if (hIn > 0) {
-    pH |= 1;
-  }
+  mH |= hInIsNegative;
+  pH |= oneIfNotZero(hIn) - hInIsNegative; // set pH[0] if hIn > 0
 
   pV = mH | ~(xV | pH);
   mV = pH & xV;
@@ -191,29 +191,46 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
   // Context used across block calculations.
   const ctx = {
-    bMax,
     P: new Uint32Array(bMax + 1),
     M: new Uint32Array(bMax + 1),
-    peq: new Map<number, Uint32Array>(),
     lastRowMask: new Uint32Array(bMax + 1)
   };
   ctx.lastRowMask.fill(1 << 31);
   ctx.lastRowMask[bMax] = 1 << (pattern.length - 1) % w;
+
+  // Dummy "peq" array for chars in the text which do not occur in the pattern.
+  const emptyPeq = new Uint32Array(bMax + 1);
+
+  // Map of UTF-16 character code to bit vector indicating positions in the
+  // pattern that equal that character.
+  const peq = new Map<number, Uint32Array>();
+
+  // Version of `peq` that only stores mappings for small characters. This
+  // allows faster lookups when iterating through the text because a simple
+  // array lookup can be done instead of a hash table lookup.
+  const asciiPeq = [] as Uint32Array[];
+  for (let i = 0; i < 256; i++) {
+    asciiPeq.push(emptyPeq);
+  }
 
   // Calculate `ctx.peq` - a map of character values to bitmasks indicating
   // positions of that character within the pattern, where each bit represents
   // a position in the pattern.
   for (let c = 0; c < pattern.length; c += 1) {
     const val = pattern.charCodeAt(c);
-    if (ctx.peq.has(val)) {
+    if (peq.has(val)) {
       // Duplicate char in pattern.
       continue;
     }
 
-    const peq = new Uint32Array(bMax + 1);
-    ctx.peq.set(val, peq);
+    const charPeq = new Uint32Array(bMax + 1);
+    peq.set(val, charPeq);
+    if (val < asciiPeq.length) {
+      asciiPeq[val] = charPeq;
+    }
+
     for (let b = 0; b <= bMax; b += 1) {
-      peq[b] = 0;
+      charPeq[b] = 0;
 
       // Set all the bits where the pattern matches the current char (ch).
       // For indexes beyond the end of the pattern, always set the bit as if the
@@ -226,14 +243,11 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
         const match = pattern.charCodeAt(idx) === val;
         if (match) {
-          peq[b] |= 1 << r;
+          charPeq[b] |= 1 << r;
         }
       }
     }
   }
-
-  // Dummy "peq" array for chars in the text which do not occur in the pattern.
-  const emptyPeq = new Uint32Array(bMax + 1);
 
   // Index of last-active block level in the column.
   let y = Math.max(0, Math.ceil(maxErrors / w) - 1);
@@ -256,16 +270,25 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   for (let j = 0; j < text.length; j += 1) {
     // Lookup the bitmask representing the positions of the current char from
     // the text within the pattern.
-    let peq = ctx.peq.get(text.charCodeAt(j));
-    if (typeof peq === "undefined") {
-      peq = emptyPeq;
+    const charCode = text.charCodeAt(j);
+    let charPeq;
+
+    if (charCode < asciiPeq.length) {
+      // Fast array lookup.
+      charPeq = asciiPeq[charCode];
+    } else {
+      // Slower hash table lookup.
+      charPeq = peq.get(charCode);
+      if (typeof charPeq === "undefined") {
+        charPeq = emptyPeq;
+      }
     }
 
     // Calculate error count for blocks that we definitely have to process for
     // this column.
     let carry = 0;
     for (let b = 0; b <= y; b += 1) {
-      carry = advanceBlock(ctx, peq, b, carry);
+      carry = advanceBlock(ctx, charPeq, b, carry);
       score[b] += carry;
     }
 
@@ -273,8 +296,8 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     // the number of blocks processed for the next column.
     if (
       score[y] - carry <= maxErrors &&
-      y < ctx.bMax &&
-      (peq[y + 1] & 1 || carry < 0)
+      y < bMax &&
+      (charPeq[y + 1] & 1 || carry < 0)
     ) {
       // Error count for bottom block is under threshold, increase the number of
       // blocks processed for this column & next by 1.
@@ -285,7 +308,10 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
       const maxBlockScore = y === bMax ? pattern.length % w : w;
       score[y] =
-        score[y - 1] + maxBlockScore - carry + advanceBlock(ctx, peq, y, carry);
+        score[y - 1] +
+        maxBlockScore -
+        carry +
+        advanceBlock(ctx, charPeq, y, carry);
     } else {
       // Error count for bottom block exceeds threshold, reduce the number of
       // blocks processed for the next column.
@@ -295,7 +321,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
     }
 
     // If error count is under threshold, report a match.
-    if (y === ctx.bMax && score[y] <= maxErrors) {
+    if (y === bMax && score[y] <= maxErrors) {
       if (score[y] < maxErrors) {
         // Discard any earlier, worse matches.
         matches.splice(0, matches.length);

@@ -1,5 +1,6 @@
 /**
- * Implementation of Myers' online approximate string matching algorithm [1].
+ * Implementation of Myers' online approximate string matching algorithm [1],
+ * with additional optimizations suggested by [2].
  *
  * This has O((k/w) * n) complexity where `n` is the length of the text, `k` is
  * the maximum number of errors allowed (always <= the pattern length) and `w`
@@ -26,6 +27,9 @@
  *
  * [1] G. Myers, “A Fast Bit-Vector Algorithm for Approximate String Matching
  * Based on Dynamic Programming,” vol. 46, no. 3, pp. 395–415, 1999.
+ *
+ * [2] Šošić, M. (2014). An simd dynamic programming c/c++ library (Doctoral
+ * dissertation, Fakultet Elektrotehnike i računarstva, Sveučilište u Zagrebu).
  */
 
 /**
@@ -112,48 +116,53 @@ interface Context {
 }
 
 /**
+ * Return 1 if a number is non-zero or zero otherwise, without using
+ * conditional operators.
+ *
+ * This should get inlined into `advanceBlock` below by the JIT.
+ *
+ * Adapted from https://stackoverflow.com/a/3912218/434243
+ */
+function oneIfNotZero(n: number) {
+  return ((n | -n) >> 31) & 1;
+}
+
+/**
  * Block calculation step of the algorithm.
  *
- * From Fig 8. on p. 408 of [1].
+ * From Fig 8. on p. 408 of [1], additionally optimized to replace conditional
+ * checks with bitwise operations as per Section 4.2.3 of [2].
  *
  * @param ctx - The pattern context object
  * @param peq - The `peq` array for the current character (`ctx.peq.get(ch)`)
  * @param b - The block level
  * @param hIn - Horizontal input delta ∈ {1,0,-1}
- * @return Horizontal output delta
+ * @return Horizontal output delta ∈ {1,0,-1}
  */
 function advanceBlock(ctx: Context, peq: Uint32Array, b: number, hIn: number) {
   let pV = ctx.P[b];
   let mV = ctx.M[b];
-  let eq = peq[b];
-  let hOut = 0;
+  const hInIsNegative = hIn >>> 31; // 1 if hIn < 0 or 0 otherwise.
+  const eq = peq[b] | hInIsNegative;
 
   // Step 1: Compute horizontal deltas.
   const xV = eq | mV;
-  if (hIn < 0) {
-    eq |= 1;
-  }
   const xH = (((eq & pV) + pV) ^ pV) | eq;
 
   let pH = mV | ~(xH | pV);
   let mH = pV & xH;
 
   // Step 2: Update score (value of last row of this block).
-  if (pH & ctx.lastRowMask[b]) {
-    hOut += 1;
-  } else if (mH & ctx.lastRowMask[b]) {
-    hOut -= 1;
-  }
+  const hOut =
+    oneIfNotZero(pH & ctx.lastRowMask[b]) -
+    oneIfNotZero(mH & ctx.lastRowMask[b]);
 
   // Step 3: Update vertical deltas for use when processing next char.
   pH <<= 1;
   mH <<= 1;
 
-  if (hIn < 0) {
-    mH |= 1;
-  } else if (hIn > 0) {
-    pH |= 1;
-  }
+  mH |= hInIsNegative;
+  pH |= oneIfNotZero(hIn) - hInIsNegative; // set pH[0] if hIn > 0
 
   pV = mH | ~(xV | pH);
   mV = pH & xV;

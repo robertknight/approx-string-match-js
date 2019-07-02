@@ -2,10 +2,10 @@
  * Implementation of Myers' online approximate string matching algorithm [1],
  * with additional optimizations suggested by [2].
  *
- * This has O((k/w) * n) complexity where `n` is the length of the text, `k` is
- * the maximum number of errors allowed (always <= the pattern length) and `w`
- * is the word size. Because JS only supports bitwise operations on 32 bit
- * integers, `w` is 32.
+ * This has O((k/w) * n) expected-time where `n` is the length of the
+ * text, `k` is the maximum number of errors allowed (always <= the pattern
+ * length) and `w` is the word size. Because JS only supports bitwise operations
+ * on 32 bit integers, `w` is 32.
  *
  * As far as I am aware, there aren't any online algorithms which are
  * significantly better for a wide range of input parameters. The problem can be

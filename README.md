@@ -12,9 +12,9 @@ one error.
 The implementation uses a bit-parallel algorithm by G. Myers [1] which, to the
 best of my knowledge, is the state of the art algorithm for the online version
 of the problem (where the text and pattern cannot be preprocessed in advance).
-Its complexity is _O((k/w) * n)_ where _k_ <= _m_ and _w_ is the word size (32
-in JavaScript). It also includes some additional optimizations suggested in [3].
-See comments in the code for more details.
+It runs in _O((k/w) * n)_ expected-time where _k_ <= _m_ and _w_ is the word
+size (32 in JavaScript). It also includes some additional optimizations
+suggested in [3].  See comments in the code for more details.
 
 ## Usage
 

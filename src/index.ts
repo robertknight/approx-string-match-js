@@ -48,10 +48,7 @@ export interface Match {
 }
 
 function reverse(s: string) {
-  return s
-    .split("")
-    .reverse()
-    .join("");
+  return s.split("").reverse().join("");
 }
 
 /**
@@ -65,7 +62,7 @@ function reverse(s: string) {
 function findMatchStarts(text: string, pattern: string, matches: Match[]) {
   const patRev = reverse(pattern);
 
-  return matches.map(m => {
+  return matches.map((m) => {
     // Find start of each match by reversing the pattern and matching segment
     // of text and searching for an approx match with the same number of
     // errors.
@@ -84,7 +81,7 @@ function findMatchStarts(text: string, pattern: string, matches: Match[]) {
     return {
       start,
       end: m.end,
-      errors: m.errors
+      errors: m.errors,
     };
   });
 }
@@ -193,7 +190,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
   const ctx = {
     P: new Uint32Array(bMax + 1),
     M: new Uint32Array(bMax + 1),
-    lastRowMask: new Uint32Array(bMax + 1)
+    lastRowMask: new Uint32Array(bMax + 1),
   };
   ctx.lastRowMask.fill(1 << 31);
   ctx.lastRowMask[bMax] = 1 << (pattern.length - 1) % w;
@@ -330,7 +327,7 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       matches.push({
         start: -1,
         end: j + 1,
-        errors: score[y]
+        errors: score[y],
       });
 
       // Because `search` only reports the matches with the lowest error count,

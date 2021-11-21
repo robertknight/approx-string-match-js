@@ -21,7 +21,7 @@ const fixtures: Fixtures = {
 
   exactMatch: [
     ["three blind mice", "blind", [{ start: 6, end: 11, errors: 0 }]],
-    ["three blind mice", "three", [{ start: 0, end: 5, errors: 0 }]]
+    ["three blind mice", "three", [{ start: 0, end: 5, errors: 0 }]],
   ],
 
   oneError: [
@@ -33,7 +33,10 @@ const fixtures: Fixtures = {
     [
       "three blind mice",
       "thrae",
-      [{ start: 0, end: 4, errors: 1 }, { start: 0, end: 5, errors: 1 }]
+      [
+        { start: 0, end: 4, errors: 1 },
+        { start: 0, end: 5, errors: 1 },
+      ],
     ],
     // One substitution
     ["facebook", "fccebook", [{ start: 0, end: 8, errors: 1 }]],
@@ -44,17 +47,20 @@ const fixtures: Fixtures = {
     [
       "facebook",
       "fcebook",
-      [{ start: 1, end: 8, errors: 1 }, { start: 0, end: 8, errors: 1 }]
-    ]
+      [
+        { start: 1, end: 8, errors: 1 },
+        { start: 0, end: 8, errors: 1 },
+      ],
+    ],
   ],
 
   manyErrors: [
     [
       "foursquare andseven",
       "four square and seven",
-      [{ start: 0, end: 19, errors: 2 }]
+      [{ start: 0, end: 19, errors: 2 }],
     ],
-    ["four squareand seven", "square  and", [{ start: 5, end: 14, errors: 2 }]]
+    ["four squareand seven", "square  and", [{ start: 5, end: 14, errors: 2 }]],
   ],
 
   unicode: [
@@ -62,7 +68,7 @@ const fixtures: Fixtures = {
     // This is consistent with the fact that JS strings are measured in UTF-16
     // code units, but we probably want to change this.
     ["sm😊le", "smile", [{ start: 0, end: 6, errors: 2 }]],
-    ["sm😊le", "sm😊le", [{ start: 0, end: 6, errors: 0 }]]
+    ["sm😊le", "sm😊le", [{ start: 0, end: 6, errors: 0 }]],
   ],
 
   longPattern: [
@@ -71,7 +77,7 @@ const fixtures: Fixtures = {
     [
       repeat("foo", 5) + repeat("bar", 20) + repeat("baz", 5),
       repeat("bar", 20),
-      [{ start: 15, end: 75, errors: 0 }]
+      [{ start: 15, end: 75, errors: 0 }],
     ],
     [
       repeat("foo", 5) +
@@ -80,9 +86,12 @@ const fixtures: Fixtures = {
         repeat("bar", 10) +
         repeat("baz", 5),
       repeat("bar", 20),
-      [{ start: 15, end: 75, errors: 3 }, { start: 15, end: 78, errors: 3 }]
-    ]
-  ]
+      [
+        { start: 15, end: 75, errors: 3 },
+        { start: 15, end: 78, errors: 3 },
+      ],
+    ],
+  ],
 };
 
 function check(
@@ -96,8 +105,8 @@ function check(
 
   // Keep only the closest matches.
   let actualMatches = searchFn(text, pattern, maxErrors);
-  const minErrors = Math.min(...actualMatches.map(m => m.errors));
-  actualMatches = actualMatches.filter(m => m.errors === minErrors);
+  const minErrors = Math.min(...actualMatches.map((m) => m.errors));
+  actualMatches = actualMatches.filter((m) => m.errors === minErrors);
 
   // Not all algorithms report all possible matches with the minimum error
   // count. In that case, require only one to match.
@@ -105,7 +114,8 @@ function check(
     const am = actualMatches[0];
     assert.ok(
       expectedMatches.some(
-        m => am.start === m.start && am.end === m.end && am.errors === m.errors // eslint-disable-line comma-dangle
+        (m) =>
+          am.start === m.start && am.end === m.end && am.errors === m.errors // eslint-disable-line comma-dangle
       )
     );
   } else {
@@ -161,7 +171,7 @@ describe("search", () => {
   `;
       const pattern = "discvery";
       const matches = search(text, pattern, 2);
-      matches.forEach(m => {
+      matches.forEach((m) => {
         assert.equal(text.slice(m.start, m.end), "discovery");
       });
     });
@@ -172,8 +182,8 @@ describe("search", () => {
       {
         start: 5,
         end: 10,
-        errors: 0
-      }
+        errors: 0,
+      },
     ]);
   });
 

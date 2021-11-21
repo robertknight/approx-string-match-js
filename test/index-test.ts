@@ -1,6 +1,6 @@
 import { assert } from "chai";
 
-import search, { Match } from "../src";
+import search, { Match } from "../src/index.js";
 
 function repeat(str: string, n: number) {
   let out = "";

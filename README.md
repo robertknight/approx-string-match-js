@@ -51,12 +51,6 @@ search(text: string, pattern: string, maxErrors: number): Match[]
 
 ## Implementation notes
 
-### Browser compatibility
-
-This library uses `Map` and typed arrays for performance reasons. You may need
-to provide polyfills for these if supporting older browsers. Typed arrays are
-available in IE 10 and later. `Map` is not supported in IE.
-
 #### Word size
 
 The algorithm uses bitwise operations on integers. Since JavaScript only

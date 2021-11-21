@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "target": "es5",
-    "module": "commonjs",
-    "lib": ["es2015"],
-    "rootDir": "src",
-    "outDir": "./dist",
+    "target": "es2018",
+    "module": "es2015",
+    "moduleResolution": "node",
+    "lib": ["es2018"],
+    "outDir": "./build",
     "declaration": true,
     "strict": true,
     "noUnusedLocals": true,
@@ -13,6 +13,7 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": [
-    "src"
+    "src",
+    "test"
   ]
 }

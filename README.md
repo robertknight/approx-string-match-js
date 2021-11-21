@@ -12,9 +12,9 @@ one error.
 The implementation uses a bit-parallel algorithm by G. Myers [1] which, to the
 best of my knowledge, is the state of the art algorithm for the online version
 of the problem (where the text and pattern cannot be preprocessed in advance).
-It runs in _O((k/w) * n)_ expected-time where _k_ <= _m_ and _w_ is the word
+It runs in _O((k/w) \* n)_ expected-time where _k_ <= _m_ and _w_ is the word
 size (32 in JavaScript). It also includes some additional optimizations
-suggested in [3].  See comments in the code for more details.
+suggested in [3]. See comments in the code for more details.
 
 ## Usage
 
@@ -23,12 +23,11 @@ npm install --save approx-string-match
 ```
 
 ```js
-// Use `import search from 'approx-string-match'` if using ES6 imports.
-var search = require('approx-string-match').default;
+import search from "approx-string-match";
 
-var text = 'Four score and seven';
-var pattern = 'annd';
-var matches = search(text, pattern, 2 /* max errors */);
+const text = "Four score and seven";
+const pattern = "annd";
+const matches = search(text, pattern, 2 /* max errors */);
 console.log(matches);
 
 // Outputs `[{ start: 11, end: 14, errors: 1 }]`
@@ -51,12 +50,6 @@ search(text: string, pattern: string, maxErrors: number): Match[]
 ```
 
 ## Implementation notes
-
-### Browser compatibility
-
-This library uses `Map` and typed arrays for performance reasons. You may need
-to provide polyfills for these if supporting older browsers. Typed arrays are
-available in IE 10 and later. `Map` is not supported in IE.
 
 #### Word size
 
@@ -90,6 +83,6 @@ vol. 46, no. 3, pp. 395–415, 1999.
 
 [2] G. Navarro, “[A guided tour to approximate string
 matching](https://scholar.google.com/scholar?q=A+guided+tour+to+approximate+string+matching),”
-ACM Comput.  Surv., vol. 33, no. 1, pp. 31–88, 2001.
+ACM Comput. Surv., vol. 33, no. 1, pp. 31–88, 2001.
 
 [3] Šošić, M. (2014). "[An SIMD dynamic programming c/c++ library](https://bib.irb.hr/datoteka/758607.diplomski_Martin_Sosic.pdf)" (Doctoral dissertation, Fakultet Elektrotehnike i računarstva, Sveučilište u Zagrebu).

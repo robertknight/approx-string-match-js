@@ -303,7 +303,14 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
       ctx.P[y] = ~0;
       ctx.M[y] = 0;
 
-      const maxBlockScore = y === bMax ? pattern.length % w : w;
+      let maxBlockScore;
+      if (y === bMax) {
+        const remainder = pattern.length % w;
+        maxBlockScore = remainder === 0 ? w : remainder;
+      } else {
+        maxBlockScore = w;
+      }
+
       score[y] =
         score[y - 1] +
         maxBlockScore -

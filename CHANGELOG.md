@@ -15,3 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - This package is now built as modern JavaScript (ES 2017) and will no longer
    work in IE 11.
+
+### Fixes
+
+ - Fixed incorrect results when pattern length is a multiple of 32 and `maxErrors`
+   is smaller than the pattern length by at least 32. [#13](https://github.com/robertknight/approx-string-match-js/pull/13)

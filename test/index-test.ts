@@ -237,4 +237,25 @@ describe("search", () => {
       assert.equal(search(text, str, 0).length, 5);
     });
   });
+
+  it("finds matches when pattern length is a multiple of block size", () => {
+    const text =
+      "for Native Americans as well.\nThe last global ice age trapped much";
+    const maxErrors = 32;
+
+    // Pattern that matches with errors, has a length that is an exact multiple
+    // of the word size, and is larger than `maxErrors` but at least word-size
+    // characters.
+    const pattern =
+      " well.\n \n2. The First Americans\nThe last global ice age trapped ";
+    assert.equal(pattern.length, 64);
+
+    const matches = search(text, pattern, maxErrors);
+    assert.equal(matches.length, 1);
+
+    const match = matches[0];
+    const matchText = text.slice(match.start, match.end);
+    assert.equal(matchText, " well.\nThe last global ice age trapped ");
+    assert.deepEqual(matches, [{ start: 23, end: 62, errors: 25 }]);
+  });
 });

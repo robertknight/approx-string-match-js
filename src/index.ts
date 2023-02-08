@@ -36,9 +36,9 @@
  * Represents a match returned by a call to `search`.
  */
 export interface Match {
-  /** Start offset within the text string of the match. */
+  /** Start offset of match in text. */
   start: number;
-  /** End offset within the text string of the match. */
+  /** End offset of match in text. */
   end: number;
   /**
    * The number of differences (insertions, deletions or substitutions) between
@@ -55,8 +55,6 @@ function reverse(s: string) {
  * Given the ends of approximate matches for `pattern` in `text`, find
  * the start of the matches.
  *
- * @param findEndFn - Function for finding the end of matches in
- * text.
  * @return Matches with the `start` property set.
  */
 function findMatchStarts(text: string, pattern: string, matches: Match[]) {
@@ -349,16 +347,16 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 }
 
 /**
- * Search for matches for `pattern` in `text` allowing up to `maxErrors` errors.
+ * Search for the closest matches for `pattern` in `text`.
  *
- * Returns the start, and end positions and error counts for each lowest-cost
- * match. Only the "best" matches are returned.
+ * Returns all matches that have the lowest number of errors, or an empty
+ * array if no match was found with `maxErrors` or fewer errors.
  */
 export default function search(
   text: string,
   pattern: string,
   maxErrors: number
-) {
+): Match[] {
   const matches = findMatchEnds(text, pattern, maxErrors);
   return findMatchStarts(text, pattern, matches);
 }

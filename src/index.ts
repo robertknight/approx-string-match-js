@@ -64,12 +64,23 @@ function findMatchStarts(text: string, pattern: string, matches: Match[]) {
     // Find start of each match by reversing the pattern and matching segment
     // of text and searching for an approx match with the same number of
     // errors.
+    //
+    // The reversed search must be anchored to the start of `textRev` (ie.
+    // `m.end` in `text`). Otherwise it can find an unrelated match elsewhere in
+    // the segment, producing a `start` for which `text.slice(start, m.end)`
+    // has more than `m.errors` errors.
     const minStart = Math.max(0, m.end - pattern.length - m.errors);
     const textRev = reverse(text.slice(minStart, m.end));
+    const revMatches = findMatchEnds(
+      textRev,
+      patRev,
+      m.errors,
+      true /* anchorStart */
+    );
 
     // If there are multiple possible start points, choose the one that
     // maximizes the length of the match.
-    const start = findMatchEnds(textRev, patRev, m.errors).reduce((min, rm) => {
+    const start = revMatches.reduce((min, rm) => {
       if (m.end - rm.end < min) {
         return m.end - rm.end;
       }
@@ -166,8 +177,16 @@ function advanceBlock(ctx: Context, peq: Uint32Array, b: number, hIn: number) {
  * with error counts <= maxErrors are discarded.
  *
  * This is the block-based search algorithm from Fig. 9 on p.410 of [1].
+ *
+ * @param anchorStart - If true, only find matches that start at the beginning
+ *   of `text`, rather than anywhere in it.
  */
-function findMatchEnds(text: string, pattern: string, maxErrors: number) {
+function findMatchEnds(
+  text: string,
+  pattern: string,
+  maxErrors: number,
+  anchorStart = false
+) {
   if (pattern.length === 0) {
     return [];
   }
@@ -281,7 +300,12 @@ function findMatchEnds(text: string, pattern: string, maxErrors: number) {
 
     // Calculate error count for blocks that we definitely have to process for
     // this column.
-    let carry = 0;
+    //
+    // When `anchorStart` is set, the top row of the DP matrix is `D[0][j] = j`
+    // (each text char before the match start counts as an error) rather than all
+    // zeros (a match may begin anywhere for free). This is achieved by feeding a
+    // horizontal delta of +1 into the first block of every column.
+    let carry = anchorStart ? 1 : 0;
     for (let b = 0; b <= y; b += 1) {
       carry = advanceBlock(ctx, charPeq, b, carry);
       score[b] += carry;

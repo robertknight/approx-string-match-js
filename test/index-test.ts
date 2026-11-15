@@ -258,4 +258,20 @@ describe("search", () => {
     assert.equal(matchText, " well.\nThe last global ice age trapped ");
     assert.deepEqual(matches, [{ start: 23, end: 62, errors: 25 }]);
   });
+
+  // See https://github.com/robertknight/approx-string-match-js/issues/20.
+  it("returns a start offset consistent with the error count", () => {
+    assert.deepEqual(search("bb", "a", 1), [
+      { start: 0, end: 1, errors: 1 },
+      { start: 1, end: 2, errors: 1 },
+    ]);
+
+    assert.deepEqual(search("foo, foo", "foobar", 3), [
+      { start: 0, end: 3, errors: 3 },
+      { start: 0, end: 4, errors: 3 },
+      { start: 0, end: 5, errors: 3 },
+      { start: 0, end: 6, errors: 3 },
+      { start: 5, end: 8, errors: 3 },
+    ]);
+  });
 });

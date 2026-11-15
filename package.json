@@ -3,7 +3,10 @@
   "version": "2.0.3",
   "type": "module",
   "main": "./build/src/index.js",
-  "repository": "https://github.com/robertknight/approx-string-match-js.git",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/robertknight/approx-string-match-js.git"
+  },
   "author": "Robert Knight <robertknight@gmail.com>",
   "license": "MIT",
   "devDependencies": {

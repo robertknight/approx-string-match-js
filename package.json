@@ -17,9 +17,9 @@
   "scripts": {
     "build": "tsc",
     "checkformatting": "prettier --check **/*.ts",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf build dist",
     "format": "prettier --write **/*.ts",
-    "prepublish": "yarn run clean && yarn run build",
+    "prepublishOnly": "npm run clean && npm run build",
     "test": "tsc && mocha build/test",
     "watch": "tsc --watch"
   },
